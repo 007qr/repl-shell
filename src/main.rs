@@ -9,14 +9,22 @@ fn main() {
         let mut input = String::new();
         match io::stdin().read_line(&mut input) {
             Ok(_) => {
-                let input = input.trim();
-                let result = eval(input);
-
-                if result == 1 {
-                    break;
+                let input: Vec<&str> = input.trim().split(" ").collect();
+                let command = input[0];
+                let args = input[1..].join(" ");
+                match eval(command, &args) {
+                    Ok(res) => {
+                        println!("{res}");
+                    },
+                    Err(ShellError::Exit(code)) => {
+                        if code == 1 {
+                            break;
+                        } else {
+                            println!("{command}: command not found");
+                        }
+                    }
                 }
 
-                println!("{input}: command not found");
             }
             Err(err) => {
                 println!("error: {err}");
@@ -26,10 +34,18 @@ fn main() {
     }
 }
 
-fn eval(input: &str) -> i8 {
-    if input == "exit" {
-        return 1;
+enum ShellError {
+    Exit(i8)
+}
+
+fn eval(command: &str, args: &str) -> Result<String, ShellError> {
+    if command == "exit" {
+        return Err(ShellError::Exit(1));
     }
 
-    return 0;
+    if command == "echo" {
+        return Ok(args.to_string());
+    }
+
+    Err(ShellError::Exit(0))
 }
