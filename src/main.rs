@@ -1,6 +1,9 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
 use std::ops::Deref;
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
+use std::process::Command;
 
 fn main() {
     loop {
@@ -24,11 +27,12 @@ fn main() {
 
                 match cmd {
                     Some(cmd) => {
-                        let builtin_names: Vec<&str> = builtin_commands.iter().map(|c| c.name()).collect();
+                        let builtin_names: Vec<&str> =
+                            builtin_commands.iter().map(|c| c.name()).collect();
                         let result = cmd.deref().run(
                             args,
                             &Shell {
-                                builtin_names:  builtin_names
+                                builtin_names: builtin_names,
                             },
                         );
                         match result {
@@ -121,16 +125,39 @@ impl BuiltinCommand for Type {
     }
 
     fn run(&self, args: Vec<&str>, shell: &Shell) -> Result<CommandResult, ShellError> {
+        if args.is_empty() {
+            return Ok(CommandResult::Output("".to_string()));
+        }
+
         if shell.builtin_names.contains(&args[0]) {
-            Ok(CommandResult::Output(format!(
+            return Ok(CommandResult::Output(format!(
                 "{} is a shell builtin",
                 args[0]
-            )))
-        } else {
-            Ok(CommandResult::Output(format!(
-                "{}: not found",
-                args[0]
-            )))
+            )));
+        }
+
+        match std::env::var("PATH") {
+            Ok(path_var) => {
+                for dir in path_var.split(":") {
+                    let candidate = Path::new(dir).join(args[0]);
+
+                    if let Ok(metadata) = candidate.metadata() {
+                        let mode = metadata.permissions().mode();
+                        let is_executable = (mode & 0o111) != 0;
+
+                        if metadata.is_file() && is_executable {
+                            return Ok(CommandResult::Output(format!(
+                                "{} is {}",
+                                &args[0],
+                                candidate.display()
+                            )));
+                        }
+                    }
+                }
+
+                Ok(CommandResult::Output(format!("{}: not found", &args[0])))
+            }
+            Err(e) => Ok(CommandResult::Output(format!("error: {e}"))),
         }
     }
 }
