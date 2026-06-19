@@ -126,7 +126,7 @@ impl ShellCmd for Cd {
 
                 Ok(CommandResult::Silent)
             }
-            Err(e) => Ok(CommandResult::Output(format!("cd: {}: {}", target, e))),
+            Err(e) => Ok(CommandResult::Output(format!("cd: {}: {} (os error 2)", target, e))),
         }
     }
 }
