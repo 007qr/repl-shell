@@ -128,7 +128,7 @@ impl BuiltinCommand for Type {
             )))
         } else {
             Ok(CommandResult::Output(format!(
-                "{}: command not found",
+                "{}: not found",
                 args[0]
             )))
         }
