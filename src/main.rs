@@ -1,64 +1,75 @@
-#[allow(unused_imports)]
+use std::collections::HashMap;
+use std::fs;
 use std::io::{self, Write};
-use std::ops::Deref;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::Command;
 
 fn main() {
+    let shell = Shell::new();
+
     loop {
         print!("$ ");
         io::stdout().flush().unwrap();
 
         let mut input = String::new();
 
-        let echo = Box::new(Echo);
-        let exit = Box::new(Exit);
-        let type_cmd = Box::new(Type);
-
-        let builtin_commands: Vec<Box<dyn BuiltinCommand>> = vec![echo, exit, type_cmd];
-
         match io::stdin().read_line(&mut input) {
             Ok(_) => {
-                let input: Vec<&str> = input.trim().split(" ").collect();
+                let input: Vec<&str> = input.trim().split_whitespace().collect();
+
+                if input.is_empty() {
+                    continue;
+                }
+
                 let command = input[0];
                 let args = input[1..].to_vec();
-                let cmd = builtin_commands.iter().find(|v| v.name() == command);
 
-                match cmd {
-                    Some(cmd) => {
-                        let builtin_names: Vec<&str> =
-                            builtin_commands.iter().map(|c| c.name()).collect();
-                        let result = cmd.deref().run(
-                            args,
-                            &Shell {
-                                builtin_names: builtin_names,
-                            },
-                        );
-                        match result {
-                            Ok(CommandResult::Kill) => {
-                                break;
-                            }
-                            Ok(CommandResult::Output(s)) => {
-                                println!("{s}");
-                            }
-                            Ok(CommandResult::Silent) => {
-                                continue;
-                            }
-                            Err(e) => {
-                                println!("error: {e}");
+                match shell.execute(command, args) {
+                    Ok(CommandResult::Kill) => break,
+                    Ok(CommandResult::Output(s)) => {
+                        if !s.is_empty() {
+                            print!("{s}");
+                            if !s.ends_with('\n') {
+                                println!();
                             }
                         }
                     }
-                    None => {
-                        println!("{command}: command not found");
-                    }
+                    Ok(CommandResult::Silent) => {}
+                    Err(e) => println!("error: {e}"),
                 }
             }
             Err(err) => {
                 println!("error: {err}");
                 break;
             }
+        }
+    }
+}
+
+struct Shell {
+    builtin_commands: HashMap<String, Box<dyn ShellCmd>>,
+}
+
+impl Shell {
+    fn new() -> Self {
+        let builtin_commands: HashMap<String, Box<dyn ShellCmd>> = vec![
+            Box::new(Echo) as Box<dyn ShellCmd>,
+            Box::new(Exit),
+            Box::new(Type),
+        ]
+        .into_iter()
+        .map(|cmd| (cmd.name().to_string(), cmd))
+        .collect();
+
+        Self { builtin_commands }
+    }
+
+    fn execute(&self, command: &str, args: Vec<&str>) -> Result<CommandResult, ShellError> {
+        if let Some(cmd) = self.builtin_commands.get(command) {
+            cmd.run(args, self)
+        } else {
+            ExternalCmd::run(command, args)
         }
     }
 }
@@ -70,16 +81,10 @@ enum ShellError {
 
 impl std::fmt::Display for ShellError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self {
-            Self::Exit(s) => {
-                write!(f, "{}", s)
-            }
+        match self {
+            Self::Exit(code) => write!(f, "{code}"),
         }
     }
-}
-
-struct Shell<'a> {
-    builtin_names: Vec<&'a str>,
 }
 
 enum CommandResult {
@@ -88,26 +93,27 @@ enum CommandResult {
     Kill,
 }
 
-trait BuiltinCommand {
+trait ShellCmd {
     fn name(&self) -> &str;
+
     fn run(&self, args: Vec<&str>, shell: &Shell) -> Result<CommandResult, ShellError>;
 }
 
 pub struct Echo;
 
-impl BuiltinCommand for Echo {
+impl ShellCmd for Echo {
     fn name(&self) -> &str {
         "echo"
     }
 
     fn run(&self, args: Vec<&str>, _shell: &Shell) -> Result<CommandResult, ShellError> {
-        Ok(CommandResult::Output(args.join(" ")))
+        Ok(CommandResult::Output(format!("{}\n", args.join(" "))))
     }
 }
 
 pub struct Exit;
 
-impl BuiltinCommand for Exit {
+impl ShellCmd for Exit {
     fn name(&self) -> &str {
         "exit"
     }
@@ -119,45 +125,69 @@ impl BuiltinCommand for Exit {
 
 pub struct Type;
 
-impl BuiltinCommand for Type {
+impl ShellCmd for Type {
     fn name(&self) -> &str {
         "type"
     }
 
     fn run(&self, args: Vec<&str>, shell: &Shell) -> Result<CommandResult, ShellError> {
         if args.is_empty() {
-            return Ok(CommandResult::Output("".to_string()));
+            return Ok(CommandResult::Silent);
         }
 
-        if shell.builtin_names.contains(&args[0]) {
+        let command = args[0];
+
+        if shell.builtin_commands.contains_key(command) {
             return Ok(CommandResult::Output(format!(
-                "{} is a shell builtin",
-                args[0]
+                "{command} is a shell builtin\n"
             )));
         }
 
         match std::env::var("PATH") {
             Ok(path_var) => {
-                for dir in path_var.split(":") {
-                    let candidate = Path::new(dir).join(args[0]);
+                for dir in path_var.split(':') {
+                    let candidate = Path::new(dir).join(command);
 
                     if let Ok(metadata) = candidate.metadata() {
-                        let mode = metadata.permissions().mode();
-                        let is_executable = (mode & 0o111) != 0;
-
-                        if metadata.is_file() && is_executable {
+                        if metadata.is_file() && is_executable(&metadata) {
                             return Ok(CommandResult::Output(format!(
-                                "{} is {}",
-                                &args[0],
+                                "{command} is {}\n",
                                 candidate.display()
                             )));
                         }
                     }
                 }
 
-                Ok(CommandResult::Output(format!("{}: not found", &args[0])))
+                Ok(CommandResult::Output(format!("{command}: not found\n")))
             }
-            Err(e) => Ok(CommandResult::Output(format!("error: {e}"))),
+            Err(e) => Ok(CommandResult::Output(format!("error: {e}\n"))),
         }
     }
+}
+
+struct ExternalCmd;
+
+impl ExternalCmd {
+    fn run(command: &str, args: Vec<&str>) -> Result<CommandResult, ShellError> {
+        match Command::new(command).args(args).output() {
+            Ok(output) => {
+                if !output.stderr.is_empty() {
+                    return Ok(CommandResult::Output(
+                        String::from_utf8_lossy(&output.stderr).to_string(),
+                    ));
+                }
+
+                Ok(CommandResult::Output(
+                    String::from_utf8_lossy(&output.stdout).to_string(),
+                ))
+            }
+            Err(_) => Ok(CommandResult::Output(format!(
+                "{command}: command not found\n"
+            ))),
+        }
+    }
+}
+
+fn is_executable(metadata: &fs::Metadata) -> bool {
+    metadata.permissions().mode() & 0o111 != 0
 }
