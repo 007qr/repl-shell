@@ -95,28 +95,41 @@ impl ShellCmd for Cd {
     }
 
     fn run(&self, args: Vec<&str>, shell: &mut Shell) -> Result<CommandResult, ShellError> {
-        let dir = args[0];
-        match PathBuf::from_str(dir) {
-            Ok(path) => {
-                match std::env::set_current_dir(&path) {
-                    Ok(_) => {
-                        shell.working_dir = std::env::current_dir().unwrap();
-                        Ok(CommandResult::Silent)
-                    },
-                    Err(_) => Ok(CommandResult::Output(format!(
-                        "cd: {}: No such file or directory",
-                        &dir
-                    ))),
+        let target = match args.first() {
+            Some(dir) => *dir,
+            None => "~",
+        };
+
+        let path = if target == "~" {
+            match std::env::var("HOME") {
+                Ok(home) => PathBuf::from(home),
+                Err(_) => {
+                    return Ok(CommandResult::Output("cd: HOME not set".to_string()));
                 }
             }
-            Err(_) => Ok(CommandResult::Output(format!(
-                "cd: {}: No such file or directory",
-                &dir
-            ))),
+        } else if let Some(rest) = target.strip_prefix("~/") {
+            match std::env::var("HOME") {
+                Ok(home) => PathBuf::from(home).join(rest),
+                Err(_) => {
+                    return Ok(CommandResult::Output("cd: HOME not set".to_string()));
+                }
+            }
+        } else {
+            PathBuf::from(target)
+        };
+
+        match std::env::set_current_dir(&path) {
+            Ok(_) => {
+                if let Ok(current_dir) = std::env::current_dir() {
+                    shell.working_dir = current_dir;
+                }
+
+                Ok(CommandResult::Silent)
+            }
+            Err(e) => Ok(CommandResult::Output(format!("cd: {}: {}", target, e))),
         }
     }
 }
-
 pub struct ExternalCmd;
 
 impl ExternalCmd {
