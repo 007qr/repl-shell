@@ -120,13 +120,18 @@ impl ShellCmd for Cd {
 
         match std::env::set_current_dir(&path) {
             Ok(_) => {
-                if let Ok(current_dir) = std::env::current_dir() {
-                    shell.working_dir = current_dir;
-                }
-
+                shell.working_dir = std::env::current_dir().unwrap();
                 Ok(CommandResult::Silent)
             }
-            Err(e) => Ok(CommandResult::Output(format!("cd: {}: {} (os error 2)", target, e))),
+            Err(e) => {
+                let msg = match e.kind() {
+                    std::io::ErrorKind::NotFound => "No such file or directory",
+                    std::io::ErrorKind::PermissionDenied => "Permission denied",
+                    _ => "Unknown error",
+                };
+
+                Ok(CommandResult::Output(format!("cd: {}: {}", target, msg)))
+            }
         }
     }
 }
