@@ -1,4 +1,8 @@
-use std::{env, path::Path, process::Command};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+    str::FromStr,
+};
 
 use crate::cmd::{CommandResult, Shell, ShellCmd, ShellError, is_executable};
 
@@ -9,7 +13,7 @@ impl ShellCmd for Echo {
         "echo"
     }
 
-    fn run(&self, args: Vec<&str>, _shell: &Shell) -> Result<CommandResult, ShellError> {
+    fn run(&self, args: Vec<&str>, _shell: &mut Shell) -> Result<CommandResult, ShellError> {
         Ok(CommandResult::Output(format!("{}\n", args.join(" "))))
     }
 }
@@ -21,7 +25,7 @@ impl ShellCmd for Exit {
         "exit"
     }
 
-    fn run(&self, _args: Vec<&str>, _shell: &Shell) -> Result<CommandResult, ShellError> {
+    fn run(&self, _args: Vec<&str>, _shell: &mut Shell) -> Result<CommandResult, ShellError> {
         Ok(CommandResult::Kill)
     }
 }
@@ -33,7 +37,7 @@ impl ShellCmd for Type {
         "type"
     }
 
-    fn run(&self, args: Vec<&str>, shell: &Shell) -> Result<CommandResult, ShellError> {
+    fn run(&self, args: Vec<&str>, shell: &mut Shell) -> Result<CommandResult, ShellError> {
         if args.is_empty() {
             return Ok(CommandResult::Silent);
         }
@@ -75,10 +79,40 @@ impl ShellCmd for Pwd {
         "pwd"
     }
 
-    fn run(&self, _args: Vec<&str>, _shell: &Shell) -> Result<CommandResult, ShellError> {
-        match env::current_dir() {
-            Ok(path) => Ok(CommandResult::Output(format!("{}", path.display()))),
-            Err(e) => Ok(CommandResult::Output(format!("{}", e)))
+    fn run(&self, _args: Vec<&str>, shell: &mut Shell) -> Result<CommandResult, ShellError> {
+        Ok(CommandResult::Output(format!(
+            "{}",
+            shell.working_dir.display()
+        )))
+    }
+}
+
+pub struct Cd;
+
+impl ShellCmd for Cd {
+    fn name(&self) -> &str {
+        "cd"
+    }
+
+    fn run(&self, args: Vec<&str>, shell: &mut Shell) -> Result<CommandResult, ShellError> {
+        let dir = args[0];
+        match PathBuf::from_str(dir) {
+            Ok(path) => {
+                match std::env::set_current_dir(&path) {
+                    Ok(_) => {
+                        shell.working_dir = std::env::current_dir().unwrap();
+                        Ok(CommandResult::Silent)
+                    },
+                    Err(_) => Ok(CommandResult::Output(format!(
+                        "cd: {}: No such file or directory",
+                        &dir
+                    ))),
+                }
+            }
+            Err(_) => Ok(CommandResult::Output(format!(
+                "cd: {}: No such file or directory",
+                &dir
+            ))),
         }
     }
 }

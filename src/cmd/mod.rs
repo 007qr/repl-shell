@@ -1,31 +1,37 @@
 pub mod builtin;
 
+use std::env;
+use std::path::PathBuf;
+use std::rc::Rc;
 use std::{collections::HashMap, fs::Metadata};
 use std::os::unix::fs::PermissionsExt;
 
-use crate::cmd::builtin::{Echo, Exit, ExternalCmd, Pwd, Type};
+use crate::cmd::builtin::{Cd, Echo, Exit, ExternalCmd, Pwd, Type};
 
 pub struct Shell {
-    builtin_commands: HashMap<String, Box<dyn ShellCmd>>,
+    builtin_commands: HashMap<String, Rc<dyn ShellCmd>>,
+    working_dir: PathBuf
 }
 
 impl Shell {
     pub fn new() -> Self {
-        let builtin_commands: HashMap<String, Box<dyn ShellCmd>> = vec![
-            Box::new(Echo) as Box<dyn ShellCmd>,
-            Box::new(Exit),
-            Box::new(Type),
-            Box::new(Pwd)
+        let builtin_commands: HashMap<String, Rc<dyn ShellCmd>> = vec![
+            Rc::new(Echo) as Rc<dyn ShellCmd>,
+            Rc::new(Exit),
+            Rc::new(Type),
+            Rc::new(Pwd),
+            Rc::new(Cd)
         ]
         .into_iter()
         .map(|cmd| (cmd.name().to_string(), cmd))
         .collect();
 
-        Self { builtin_commands }
+        let current_dir = env::current_dir().unwrap();
+        Self { builtin_commands, working_dir: current_dir }
     }
 
-    pub fn execute(&self, command: &str, args: Vec<&str>) -> Result<CommandResult, ShellError> {
-        if let Some(cmd) = self.builtin_commands.get(command) {
+    pub fn execute(&mut self, command: &str, args: Vec<&str>) -> Result<CommandResult, ShellError> {
+        if let Some(cmd) = self.builtin_commands.get(command).cloned() {
             cmd.run(args, self)
         } else {
             ExternalCmd::run(command, args)
@@ -55,7 +61,7 @@ pub enum CommandResult {
 pub trait ShellCmd {
     fn name(&self) -> &str;
 
-    fn run(&self, args: Vec<&str>, shell: &Shell) -> Result<CommandResult, ShellError>;
+    fn run(&self, args: Vec<&str>, shell: &mut Shell) -> Result<CommandResult, ShellError>;
 }
 
 #[inline]

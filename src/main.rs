@@ -6,7 +6,7 @@ use crate::cmd::{CommandResult, Shell};
 
 
 fn main() {
-    let shell = Shell::new();
+    let mut shell = Shell::new();
 
     loop {
         print!("$ ");
