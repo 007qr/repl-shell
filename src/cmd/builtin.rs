@@ -1,7 +1,6 @@
 use std::{
     path::{Path, PathBuf},
     process::Command,
-    str::FromStr,
 };
 
 use crate::cmd::{CommandResult, Shell, ShellCmd, ShellError, is_executable};
@@ -135,6 +134,7 @@ impl ShellCmd for Cd {
         }
     }
 }
+
 pub struct ExternalCmd;
 
 impl ExternalCmd {
