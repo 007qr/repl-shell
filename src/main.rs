@@ -91,11 +91,9 @@ fn parse_quotes(input: &str) -> Vec<String> {
             }
             '\\' => {
                 in_token = true;
-                if let Some(&next) = chars.peek() {
-                    if matches!(next, '\\' | '"' | '$' | '*' | '?' | ' ' | '\'') {
-                        current.push(chars.next().unwrap());
-                        continue;
-                    }
+                if let Some(&_next) = chars.peek() {
+                    current.push(chars.next().unwrap());
+                    continue;
                 }
                 current.push(c);
             }
