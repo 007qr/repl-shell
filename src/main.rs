@@ -57,9 +57,17 @@ fn parse_quotes(input: &str) -> Vec<String> {
             '\'' => {
                 in_token = true;
                 // Inside single quotes everything is literal until the next '
-                for c in chars.by_ref() {
+                while let Some(c) = chars.next() {
                     if c == '\'' {
                         break;
+                    }
+                    if c == '\\' {
+                        if let Some(&next) = chars.peek() {
+                            if matches!(next, '\\' | '\'' | '$' | '`' | '~') {
+                                current.push(chars.next().unwrap());
+                                continue;
+                            }
+                        }
                     }
                     current.push(c);
                 }
@@ -81,6 +89,16 @@ fn parse_quotes(input: &str) -> Vec<String> {
                     current.push(c);
                 }
             }
+            '\\' => {
+                in_token = true;
+                if let Some(&next) = chars.peek() {
+                    if matches!(next, '\\' | '"' | '$' | '*' | '?') {
+                        current.push(chars.next().unwrap());
+                        continue;
+                    }
+                }
+                current.push(c);
+            }
             c if c.is_whitespace() => {
                 if in_token {
                     tokens.push(std::mem::take(&mut current));
@@ -88,6 +106,13 @@ fn parse_quotes(input: &str) -> Vec<String> {
                 }
             }
             c => {
+                if c == '~' && !in_token && matches!(chars.peek(), None | Some('/')) {
+                    if let Ok(home) = std::env::var("HOME") {
+                        current.push_str(&home);
+                        in_token = true;
+                        continue;
+                    }
+                }
                 in_token = true;
                 current.push(c);
             }

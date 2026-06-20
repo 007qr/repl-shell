@@ -1,5 +1,5 @@
 use std::{
-    path::{Path, PathBuf},
+    path::Path,
     process::Command,
 };
 
@@ -94,30 +94,19 @@ impl ShellCmd for Cd {
     }
 
     fn run(&self, args: Vec<&str>, shell: &mut Shell) -> Result<CommandResult, ShellError> {
+        // Tilde expansion already happened in the tokenizer for unquoted ~,
+        // so cd only needs HOME for the no-argument case.
         let target = match args.first() {
-            Some(dir) => *dir,
-            None => "~",
-        };
-
-        let path = if target == "~" {
-            match std::env::var("HOME") {
-                Ok(home) => PathBuf::from(home),
+            Some(dir) => dir.to_string(),
+            None => match std::env::var("HOME") {
+                Ok(home) => home,
                 Err(_) => {
                     return Ok(CommandResult::Output("cd: HOME not set".to_string()));
                 }
-            }
-        } else if let Some(rest) = target.strip_prefix("~/") {
-            match std::env::var("HOME") {
-                Ok(home) => PathBuf::from(home).join(rest),
-                Err(_) => {
-                    return Ok(CommandResult::Output("cd: HOME not set".to_string()));
-                }
-            }
-        } else {
-            PathBuf::from(target)
+            },
         };
 
-        match std::env::set_current_dir(&path) {
+        match std::env::set_current_dir(&target) {
             Ok(_) => {
                 shell.working_dir = std::env::current_dir().unwrap();
                 Ok(CommandResult::Silent)
