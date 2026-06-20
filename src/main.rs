@@ -61,14 +61,6 @@ fn parse_quotes(input: &str) -> Vec<String> {
                     if c == '\'' {
                         break;
                     }
-                    if c == '\\' {
-                        if let Some(&next) = chars.peek() {
-                            if matches!(next, '\\' | '\'' | '$' | '`' | '~') {
-                                current.push(chars.next().unwrap());
-                                continue;
-                            }
-                        }
-                    }
                     current.push(c);
                 }
             },
@@ -77,14 +69,6 @@ fn parse_quotes(input: &str) -> Vec<String> {
                 while let Some(c) = chars.next() {
                     if c == '"' {
                         break;
-                    }
-                    if c == '\\' {
-                        if let Some(&next) = chars.peek() {
-                            if matches!(next, '\\' | '"' | '$' | '`' | '~') {
-                                current.push(chars.next().unwrap());
-                                continue;
-                            }
-                        }
                     }
                     current.push(c);
                 }
