@@ -1,6 +1,9 @@
 pub mod cmd;
 
-use std::io::{self, Write};
+use std::{
+    fs::OpenOptions,
+    io::{self, Write},
+};
 
 use crate::cmd::{CommandResult, Shell};
 
@@ -12,6 +15,7 @@ struct TokenizedInput {
 struct Redirection {
     error: bool,
     file_name: String,
+    append_only: bool,
 }
 
 fn main() {
@@ -28,7 +32,7 @@ fn main() {
                 let input = input.trim();
 
                 let (redirection, parsed_input) = parse_quotes(&input);
-                let Some(tokenized)= tokenize_input(parsed_input) else {
+                let Some(tokenized) = tokenize_input(parsed_input) else {
                     continue; // empty line — just re-prompt
                 };
 
@@ -40,8 +44,18 @@ fn main() {
                 match shell.execute(&tokenized.command, args) {
                     Ok(CommandResult::Kill) => break,
                     Ok(CommandResult::Streams { stdout, stderr }) => {
-                        emit(&stdout, redirect_stdout, &redirection.file_name);
-                        emit(&stderr, redirect_stderr, &redirection.file_name);
+                        emit(
+                            &stdout,
+                            redirect_stdout,
+                            &redirection.file_name,
+                            redirection.append_only,
+                        );
+                        emit(
+                            &stderr,
+                            redirect_stderr,
+                            &redirection.file_name,
+                            redirection.append_only,
+                        );
                     }
                     Ok(CommandResult::Silent) => {}
                     Err(e) => println!("error: {e}"),
@@ -57,10 +71,23 @@ fn main() {
 
 /// Send a single output stream to its destination: the redirection file when
 /// `to_file` is set, otherwise the terminal (skipping empty terminal output).
-fn emit(stream: &str, to_file: bool, file_name: &str) {
+fn emit(stream: &str, to_file: bool, file_name: &str, append_only: bool) {
     if to_file {
-        if let Err(e) = std::fs::write(file_name, stream) {
-            println!("error: {e}");
+        if !append_only {
+            if let Err(e) = std::fs::write(file_name, stream) {
+                println!("error: {e}");
+            }
+        } else {
+            match OpenOptions::new().append(true).create(true).open(file_name) {
+                Ok(mut file) => {
+                    if let Err(e) = write!(file, "{}", stream) {
+                        println!("error: {e}");
+                    }
+                }
+                Err(e) => {
+                    println!("error: {e}");
+                }
+            }
         }
     } else if !stream.is_empty() {
         print!("{stream}");
@@ -76,6 +103,7 @@ fn parse_quotes(input: &str) -> (Redirection, Vec<String>) {
     let mut file_name = String::new();
     let mut in_token = false;
     let mut stderr_output = false;
+    let mut append_only = false;
     let mut chars = input.chars().peekable();
 
     while let Some(c) = chars.next() {
@@ -124,10 +152,19 @@ fn parse_quotes(input: &str) -> (Redirection, Vec<String>) {
                 in_token = false;
 
                 // Remove space between redirection and filename
+
+                if let Some(&next) = chars.peek() {
+                    if matches!(next, '>') {
+                        chars.next();
+                        append_only = true;
+                    }
+                }
+
                 if let Some(&next) = chars.peek() {
                     if matches!(next, ' ') {
                         chars.next();
                     }
+
                 }
 
                 while let Some(c) = chars.next() {
@@ -178,6 +215,7 @@ fn parse_quotes(input: &str) -> (Redirection, Vec<String>) {
         Redirection {
             error: stderr_output,
             file_name,
+            append_only,
         },
         tokens,
     )
