@@ -112,7 +112,11 @@ fn parse_quotes(input: &str) -> (String, Vec<String>) {
                 current.push(c);
             }
             '>' => {
-                in_token = true;
+                if in_token {
+                    tokens.push(std::mem::take(&mut current));
+                    in_token = false;
+                }
+
                 // Remove space between redirection and filename
                 if let Some(&next) = chars.peek() {
                     if matches!(next, ' ') {
