@@ -4,6 +4,17 @@ use std::io::{self, Write};
 
 use crate::cmd::{CommandResult, Shell};
 
+struct TokenizedInput {
+    command: String,
+    args: Vec<String>,
+    redirection: Redirection,
+}
+
+struct Redirection {
+    error: bool,
+    file_name: String,
+}
+
 fn main() {
     let mut shell = Shell::new();
 
@@ -17,8 +28,8 @@ fn main() {
             Ok(_) => {
                 let input = input.trim();
 
-                let result = parse_quotes(&input);
-                let Some((file_name, command, args)) = tokenize_input(result) else {
+                let (redirection, parsed_input) = parse_quotes(&input);
+                let Some((command, args)) = tokenize_input(parsed_input) else {
                     continue; // empty line — just re-prompt
                 };
 
@@ -27,33 +38,48 @@ fn main() {
                 match shell.execute(&command, args) {
                     Ok(CommandResult::Kill) => break,
                     Ok(CommandResult::Output(s)) => {
-                        if file_name.is_empty() {
-                            print!("{s}");
-                            if !s.ends_with('\n') {
-                                println!();
+                        if redirection.file_name.is_empty() {
+                            if !s.is_empty() {
+                                print!("{s}");
+                                if !s.ends_with('\n') {
+                                    println!();
+                                }
                             }
 
                             continue;
                         }
 
-                        match std::fs::exists(&file_name) {
+                        match std::fs::exists(&redirection.file_name) {
                             Ok(_) => {
-                                std::fs::write(&file_name, &s).unwrap();
+                                std::fs::write(&redirection.file_name, &s).unwrap();
                                 continue;
-                            },
+                            }
+                            Err(e) => {
+                                println!("error: {e}");
+                            }
+                        }
+                    }
+                    Ok(CommandResult::ErrOutput(s)) => {
+                        if redirection.file_name.is_empty() || redirection.error == false {
+                            if !s.is_empty() {
+                                print!("{s}");
+                                if !s.ends_with('\n') {
+                                    println!();
+                                }
+                            }
+                            continue;
+                        }
+
+                        match std::fs::exists(&redirection.file_name) {
+                            Ok(_) => {
+                                std::fs::write(&redirection.file_name, &s).unwrap();
+                                continue;
+                            }
                             Err(e) => {
                                 println!("error: {e}");
                             }
                         }
 
-                    }
-                    Ok(CommandResult::ErrOutput(s)) => {
-                        if !s.is_empty() {
-                            print!("{s}");
-                            if !s.ends_with('\n') {
-                                println!();
-                            }
-                        }
                     }
                     Ok(CommandResult::Silent) => {}
                     Err(e) => println!("error: {e}"),
@@ -67,11 +93,12 @@ fn main() {
     }
 }
 
-fn parse_quotes(input: &str) -> (String, Vec<String>) {
+fn parse_quotes(input: &str) -> (Redirection, Vec<String>) {
     let mut tokens = Vec::new();
     let mut current = String::new();
     let mut file_name = String::new();
     let mut in_token = false;
+    let mut stderr_output = false;
     let mut chars = input.chars().peekable();
 
     while let Some(c) = chars.next() {
@@ -146,6 +173,18 @@ fn parse_quotes(input: &str) -> (String, Vec<String>) {
                         continue;
                     }
                 }
+
+                if c == '1' && !in_token && matches!(chars.peek(), Some('>')) {
+                    in_token = true;
+                    continue;
+                }
+
+                if c == '2' && !in_token && matches!(chars.peek(), Some('>')) {
+                    in_token = true;
+                    stderr_output = true;
+                    continue;
+                }
+
                 in_token = true;
                 current.push(c);
             }
@@ -156,12 +195,16 @@ fn parse_quotes(input: &str) -> (String, Vec<String>) {
         tokens.push(current);
     }
 
-    (file_name, tokens)
+    (
+        Redirection {
+            error: stderr_output,
+            file_name,
+        },
+        tokens,
+    )
 }
 
-fn tokenize_input(
-    (file_name, input): (String, Vec<String>),
-) -> Option<(String, String, Vec<String>)> {
+fn tokenize_input(input: Vec<String>) -> Option<(String, Vec<String>)> {
     let (command, args) = input.split_first()?;
-    Some((file_name, command.clone(), args.to_vec()))
+    Some((command.clone(), args.to_vec()))
 }
