@@ -54,6 +54,7 @@ impl std::fmt::Display for ShellError {
 
 pub enum CommandResult {
     Output(String),
+    ErrOutput(String),
     Silent,
     Kill,
 }

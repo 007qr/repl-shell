@@ -4,7 +4,6 @@ use std::io::{self, Write};
 
 use crate::cmd::{CommandResult, Shell};
 
-
 fn main() {
     let mut shell = Shell::new();
 
@@ -19,14 +18,36 @@ fn main() {
                 let input = input.trim();
 
                 let result = parse_quotes(&input);
-                let Some((command, args)) = tokenize_input(result) else {
+                let Some((file_name, command, args)) = tokenize_input(result) else {
                     continue; // empty line — just re-prompt
                 };
+
                 let args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
 
                 match shell.execute(&command, args) {
                     Ok(CommandResult::Kill) => break,
                     Ok(CommandResult::Output(s)) => {
+                        if file_name.is_empty() {
+                            print!("{s}");
+                            if !s.ends_with('\n') {
+                                println!();
+                            }
+
+                            continue;
+                        }
+
+                        match std::fs::exists(&file_name) {
+                            Ok(_) => {
+                                std::fs::write(&file_name, &s).unwrap();
+                                continue;
+                            },
+                            Err(e) => {
+                                println!("error: {e}");
+                            }
+                        }
+
+                    }
+                    Ok(CommandResult::ErrOutput(s)) => {
                         if !s.is_empty() {
                             print!("{s}");
                             if !s.ends_with('\n') {
@@ -46,9 +67,10 @@ fn main() {
     }
 }
 
-fn parse_quotes(input: &str) -> Vec<String> {
+fn parse_quotes(input: &str) -> (String, Vec<String>) {
     let mut tokens = Vec::new();
     let mut current = String::new();
+    let mut file_name = String::new();
     let mut in_token = false;
     let mut chars = input.chars().peekable();
 
@@ -63,7 +85,7 @@ fn parse_quotes(input: &str) -> Vec<String> {
                     }
                     current.push(c);
                 }
-            },
+            }
             '"' => {
                 in_token = true;
                 while let Some(c) = chars.next() {
@@ -89,6 +111,23 @@ fn parse_quotes(input: &str) -> Vec<String> {
                 }
                 current.push(c);
             }
+            '>' => {
+                in_token = true;
+                // Remove space between redirection and filename
+                if let Some(&next) = chars.peek() {
+                    if matches!(next, ' ') {
+                        chars.next();
+                    }
+                }
+
+                while let Some(c) = chars.next() {
+                    if c == ' ' {
+                        break;
+                    }
+
+                    file_name.push(c);
+                }
+            }
             c if c.is_whitespace() => {
                 if in_token {
                     tokens.push(std::mem::take(&mut current));
@@ -113,10 +152,12 @@ fn parse_quotes(input: &str) -> Vec<String> {
         tokens.push(current);
     }
 
-    tokens
+    (file_name, tokens)
 }
 
-fn tokenize_input(input: Vec<String>) -> Option<(String, Vec<String>)> {
+fn tokenize_input(
+    (file_name, input): (String, Vec<String>),
+) -> Option<(String, String, Vec<String>)> {
     let (command, args) = input.split_first()?;
-    Some((command.clone(), args.to_vec()))
+    Some((file_name, command.clone(), args.to_vec()))
 }

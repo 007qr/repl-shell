@@ -64,9 +64,9 @@ impl ShellCmd for Type {
                     }
                 }
 
-                Ok(CommandResult::Output(format!("{command}: not found\n")))
+                Ok(CommandResult::ErrOutput(format!("{command}: not found\n")))
             }
-            Err(e) => Ok(CommandResult::Output(format!("error: {e}\n"))),
+            Err(e) => Ok(CommandResult::ErrOutput(format!("error: {e}\n"))),
         }
     }
 }
@@ -101,7 +101,7 @@ impl ShellCmd for Cd {
             None => match std::env::var("HOME") {
                 Ok(home) => home,
                 Err(_) => {
-                    return Ok(CommandResult::Output("cd: HOME not set".to_string()));
+                    return Ok(CommandResult::ErrOutput("cd: HOME not set".to_string()));
                 }
             },
         };
@@ -118,7 +118,7 @@ impl ShellCmd for Cd {
                     _ => "Unknown error",
                 };
 
-                Ok(CommandResult::Output(format!("cd: {}: {}", target, msg)))
+                Ok(CommandResult::ErrOutput(format!("cd: {}: {}", target, msg)))
             }
         }
     }
@@ -131,7 +131,7 @@ impl ExternalCmd {
         match Command::new(command).args(args).output() {
             Ok(output) => {
                 if !output.stderr.is_empty() {
-                    return Ok(CommandResult::Output(
+                    return Ok(CommandResult::ErrOutput(
                         String::from_utf8_lossy(&output.stderr).to_string(),
                     ));
                 }
@@ -140,7 +140,7 @@ impl ExternalCmd {
                     String::from_utf8_lossy(&output.stdout).to_string(),
                 ))
             }
-            Err(_) => Ok(CommandResult::Output(format!(
+            Err(_) => Ok(CommandResult::ErrOutput(format!(
                 "{command}: command not found\n"
             ))),
         }
