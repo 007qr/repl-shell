@@ -7,7 +7,6 @@ use crate::cmd::{CommandResult, Shell};
 struct TokenizedInput {
     command: String,
     args: Vec<String>,
-    redirection: Redirection,
 }
 
 struct Redirection {
@@ -29,13 +28,13 @@ fn main() {
                 let input = input.trim();
 
                 let (redirection, parsed_input) = parse_quotes(&input);
-                let Some((command, args)) = tokenize_input(parsed_input) else {
+                let Some(tokenized)= tokenize_input(parsed_input) else {
                     continue; // empty line — just re-prompt
                 };
 
-                let args: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+                let args: Vec<&str> = tokenized.args.iter().map(|s| s.as_str()).collect();
 
-                match shell.execute(&command, args) {
+                match shell.execute(&tokenized.command, args) {
                     Ok(CommandResult::Kill) => break,
                     Ok(CommandResult::Output(s)) => {
                         if redirection.file_name.is_empty() {
@@ -79,7 +78,6 @@ fn main() {
                                 println!("error: {e}");
                             }
                         }
-
                     }
                     Ok(CommandResult::Silent) => {}
                     Err(e) => println!("error: {e}"),
@@ -139,10 +137,12 @@ fn parse_quotes(input: &str) -> (Redirection, Vec<String>) {
                 current.push(c);
             }
             '>' => {
-                if in_token {
+                // Flush a real pending token (e.g. `echo hi>file`), but not the
+                // empty `current` left behind by a `1>`/`2>` fd prefix.
+                if in_token && !current.is_empty() {
                     tokens.push(std::mem::take(&mut current));
-                    in_token = false;
                 }
+                in_token = false;
 
                 // Remove space between redirection and filename
                 if let Some(&next) = chars.peek() {
@@ -204,7 +204,11 @@ fn parse_quotes(input: &str) -> (Redirection, Vec<String>) {
     )
 }
 
-fn tokenize_input(input: Vec<String>) -> Option<(String, Vec<String>)> {
+fn tokenize_input(input: Vec<String>) -> Option<TokenizedInput> {
     let (command, args) = input.split_first()?;
-    Some((command.clone(), args.to_vec()))
+
+    Some(TokenizedInput {
+        command: command.clone(),
+        args: args.to_vec(),
+    })
 }
