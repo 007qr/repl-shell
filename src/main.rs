@@ -34,50 +34,20 @@ fn main() {
 
                 let args: Vec<&str> = tokenized.args.iter().map(|s| s.as_str()).collect();
 
+                let redirect_stdout = !redirection.file_name.is_empty() && !redirection.error;
+                let redirect_stderr = !redirection.file_name.is_empty() && redirection.error;
+
                 match shell.execute(&tokenized.command, args) {
                     Ok(CommandResult::Kill) => break,
                     Ok(CommandResult::Output(s)) => {
-                        if redirection.file_name.is_empty() {
-                            if !s.is_empty() {
-                                print!("{s}");
-                                if !s.ends_with('\n') {
-                                    println!();
-                                }
-                            }
-
-                            continue;
-                        }
-
-                        match std::fs::exists(&redirection.file_name) {
-                            Ok(_) => {
-                                std::fs::write(&redirection.file_name, &s).unwrap();
-                                continue;
-                            }
-                            Err(e) => {
-                                println!("error: {e}");
-                            }
-                        }
+                        emit(&s, redirect_stdout, &redirection.file_name);
                     }
                     Ok(CommandResult::ErrOutput(s)) => {
-                        if redirection.file_name.is_empty() || redirection.error == false {
-                            if !s.is_empty() {
-                                print!("{s}");
-                                if !s.ends_with('\n') {
-                                    println!();
-                                }
-                            }
-                            continue;
-                        }
-
-                        match std::fs::exists(&redirection.file_name) {
-                            Ok(_) => {
-                                std::fs::write(&redirection.file_name, &s).unwrap();
-                                continue;
-                            }
-                            Err(e) => {
-                                println!("error: {e}");
-                            }
-                        }
+                        emit(&s, redirect_stderr, &redirection.file_name);
+                    }
+                    Ok(CommandResult::Streams { stdout, stderr }) => {
+                        emit(&stdout, redirect_stdout, &redirection.file_name);
+                        emit(&stderr, redirect_stderr, &redirection.file_name);
                     }
                     Ok(CommandResult::Silent) => {}
                     Err(e) => println!("error: {e}"),
@@ -87,6 +57,21 @@ fn main() {
                 println!("error: {err}");
                 break;
             }
+        }
+    }
+}
+
+/// Send a single output stream to its destination: the redirection file when
+/// `to_file` is set, otherwise the terminal (skipping empty terminal output).
+fn emit(stream: &str, to_file: bool, file_name: &str) {
+    if to_file {
+        if let Err(e) = std::fs::write(file_name, stream) {
+            println!("error: {e}");
+        }
+    } else if !stream.is_empty() {
+        print!("{stream}");
+        if !stream.ends_with('\n') {
+            println!();
         }
     }
 }

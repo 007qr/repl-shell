@@ -55,6 +55,9 @@ impl std::fmt::Display for ShellError {
 pub enum CommandResult {
     Output(String),
     ErrOutput(String),
+    /// A command that produced both stdout and stderr (e.g. external commands).
+    /// Each stream is routed independently by the redirection logic.
+    Streams { stdout: String, stderr: String },
     Silent,
     Kill,
 }

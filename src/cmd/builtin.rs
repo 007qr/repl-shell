@@ -129,17 +129,10 @@ pub struct ExternalCmd;
 impl ExternalCmd {
     pub fn run(command: &str, args: Vec<&str>) -> Result<CommandResult, ShellError> {
         match Command::new(command).args(args).output() {
-            Ok(output) => {
-                if !output.stderr.is_empty() {
-                    return Ok(CommandResult::ErrOutput(
-                        String::from_utf8_lossy(&output.stderr).to_string(),
-                    ));
-                }
-
-                Ok(CommandResult::Output(
-                    String::from_utf8_lossy(&output.stdout).to_string(),
-                ))
-            }
+            Ok(output) => Ok(CommandResult::Streams {
+                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            }),
             Err(_) => Ok(CommandResult::ErrOutput(format!(
                 "{command}: command not found\n"
             ))),
