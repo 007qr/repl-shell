@@ -39,12 +39,6 @@ fn main() {
 
                 match shell.execute(&tokenized.command, args) {
                     Ok(CommandResult::Kill) => break,
-                    Ok(CommandResult::Output(s)) => {
-                        emit(&s, redirect_stdout, &redirection.file_name);
-                    }
-                    Ok(CommandResult::ErrOutput(s)) => {
-                        emit(&s, redirect_stderr, &redirection.file_name);
-                    }
                     Ok(CommandResult::Streams { stdout, stderr }) => {
                         emit(&stdout, redirect_stdout, &redirection.file_name);
                         emit(&stderr, redirect_stderr, &redirection.file_name);

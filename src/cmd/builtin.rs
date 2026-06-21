@@ -13,7 +13,10 @@ impl ShellCmd for Echo {
     }
 
     fn run(&self, args: Vec<&str>, _shell: &mut Shell) -> Result<CommandResult, ShellError> {
-        Ok(CommandResult::Output(format!("{}\n", args.join(" "))))
+        Ok(CommandResult::Streams {
+            stdout: format!("{}\n", args.join(" ")),
+            stderr: String::new(),
+        })
     }
 }
 
@@ -44,9 +47,10 @@ impl ShellCmd for Type {
         let command = args[0];
 
         if shell.builtin_commands.contains_key(command) {
-            return Ok(CommandResult::Output(format!(
-                "{command} is a shell builtin\n"
-            )));
+            return Ok(CommandResult::Streams {
+                stdout: format!("{command} is a shell builtin\n"),
+                stderr: String::new(),
+            });
         }
 
         match std::env::var("PATH") {
@@ -56,17 +60,23 @@ impl ShellCmd for Type {
 
                     if let Ok(metadata) = candidate.metadata() {
                         if metadata.is_file() && is_executable(&metadata) {
-                            return Ok(CommandResult::Output(format!(
-                                "{command} is {}\n",
-                                candidate.display()
-                            )));
+                            return Ok(CommandResult::Streams {
+                                stdout: format!("{command} is {}\n", candidate.display()),
+                                stderr: String::new(),
+                            });
                         }
                     }
                 }
 
-                Ok(CommandResult::ErrOutput(format!("{command}: not found\n")))
+                Ok(CommandResult::Streams {
+                    stdout: String::new(),
+                    stderr: format!("{command}: not found\n"),
+                })
             }
-            Err(e) => Ok(CommandResult::ErrOutput(format!("error: {e}\n"))),
+            Err(e) => Ok(CommandResult::Streams {
+                stdout: String::new(),
+                stderr: format!("error: {e}\n"),
+            }),
         }
     }
 }
@@ -79,10 +89,10 @@ impl ShellCmd for Pwd {
     }
 
     fn run(&self, _args: Vec<&str>, shell: &mut Shell) -> Result<CommandResult, ShellError> {
-        Ok(CommandResult::Output(format!(
-            "{}",
-            shell.working_dir.display()
-        )))
+        Ok(CommandResult::Streams {
+            stdout: format!("{}", shell.working_dir.display()),
+            stderr: String::new(),
+        })
     }
 }
 
@@ -101,7 +111,10 @@ impl ShellCmd for Cd {
             None => match std::env::var("HOME") {
                 Ok(home) => home,
                 Err(_) => {
-                    return Ok(CommandResult::ErrOutput("cd: HOME not set".to_string()));
+                    return Ok(CommandResult::Streams {
+                        stdout: String::new(),
+                        stderr: "cd: HOME not set".to_string(),
+                    });
                 }
             },
         };
@@ -118,7 +131,10 @@ impl ShellCmd for Cd {
                     _ => "Unknown error",
                 };
 
-                Ok(CommandResult::ErrOutput(format!("cd: {}: {}", target, msg)))
+                Ok(CommandResult::Streams {
+                    stdout: String::new(),
+                    stderr: format!("cd: {}: {}", target, msg),
+                })
             }
         }
     }
@@ -133,9 +149,10 @@ impl ExternalCmd {
                 stdout: String::from_utf8_lossy(&output.stdout).to_string(),
                 stderr: String::from_utf8_lossy(&output.stderr).to_string(),
             }),
-            Err(_) => Ok(CommandResult::ErrOutput(format!(
-                "{command}: command not found\n"
-            ))),
+            Err(_) => Ok(CommandResult::Streams {
+                stdout: String::new(),
+                stderr: format!("{command}: command not found\n"),
+            }),
         }
     }
 }
