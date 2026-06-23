@@ -27,9 +27,15 @@ impl Completer for ShellCompleter {
             let (start, candidates) = self.file_completer.complete(line, pos, ctx)?;
             let candidates = candidates
                 .into_iter()
-                .map(|pair| Pair {
-                    replacement: format!("{} ", pair.replacement),
-                    ..pair
+                .map(|pair| {
+                    if pair.replacement.ends_with('/') {
+                        pair
+                    } else {
+                        Pair {
+                            replacement: format!("{} ", pair.replacement),
+                            ..pair
+                        }
+                    }
                 })
                 .collect();
             Ok((start, candidates))
