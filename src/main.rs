@@ -23,13 +23,19 @@ struct Redirection {
 fn main() {
     let mut shell = Shell::new();
 
-    let cmd_names = shell
+    let mut cmd_names: Vec<String> = shell
         .builtin_commands()
         .keys()
         .into_iter()
-        .map(String::from);
+        .map(String::from)
+        .collect();
 
-    let h = ShellCompleter::new(cmd_names.collect());
+    let mut external_cmd_names: Vec<String> =
+        shell.external_commands().keys().map(String::from).collect();
+
+    cmd_names.append(&mut external_cmd_names);
+
+    let h = ShellCompleter::new(cmd_names);
     let mut rl = Editor::new().expect("failed to create rustyline editor");
     rl.set_helper(Some(h));
 
