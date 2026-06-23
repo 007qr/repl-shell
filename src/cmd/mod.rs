@@ -1,4 +1,9 @@
-pub mod builtin;
+mod cd;
+mod echo;
+mod exit;
+mod external;
+mod pwd;
+mod r#type;
 
 use std::env;
 use std::path::PathBuf;
@@ -6,7 +11,14 @@ use std::rc::Rc;
 use std::{collections::HashMap, fs::Metadata};
 use std::os::unix::fs::PermissionsExt;
 
-use crate::cmd::builtin::{Cd, Echo, Exit, ExternalCmd, Pwd, Type};
+use self::{
+    cd::Cd,
+    echo::Echo,
+    exit::Exit,
+    external::ExternalCmd,
+    pwd::Pwd,
+    r#type::Type,
+};
 
 pub struct Shell {
     builtin_commands: HashMap<String, Rc<dyn ShellCmd>>,
@@ -67,6 +79,6 @@ pub trait ShellCmd {
 }
 
 #[inline]
-fn is_executable(metadata: &Metadata) -> bool {
+pub fn is_executable(metadata: &Metadata) -> bool {
     metadata.permissions().mode() & 0o111 != 0
 }

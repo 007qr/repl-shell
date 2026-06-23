@@ -1,11 +1,13 @@
 pub mod cmd;
+pub mod completer;
 
-use std::{
-    fs::OpenOptions,
-    io::{self, Write},
-};
+use std::fs::OpenOptions;
+use std::io::Write;
+
+use rustyline::Editor;
 
 use crate::cmd::{CommandResult, Shell};
+use crate::completer::ShellCompleter;
 
 struct TokenizedInput {
     command: String,
@@ -21,14 +23,17 @@ struct Redirection {
 fn main() {
     let mut shell = Shell::new();
 
+    let h = ShellCompleter::new(
+        ["echo", "exit"].into_iter().map(String::from).collect(),
+    );
+    let mut rl = Editor::new().expect("failed to create rustyline editor");
+    rl.set_helper(Some(h));
+
     loop {
-        print!("$ ");
-        io::stdout().flush().unwrap();
+        match rl.readline("$ ") {
+            Ok(input) => {
+                let _ = rl.add_history_entry(&input);
 
-        let mut input = String::new();
-
-        match io::stdin().read_line(&mut input) {
-            Ok(_) => {
                 let input = input.trim();
 
                 let (redirection, parsed_input) = parse_quotes(&input);
@@ -61,6 +66,8 @@ fn main() {
                     Err(e) => println!("error: {e}"),
                 }
             }
+            Err(rustyline::error::ReadlineError::Interrupted) => break,
+            Err(rustyline::error::ReadlineError::Eof) => break,
             Err(err) => {
                 println!("error: {err}");
                 break;
