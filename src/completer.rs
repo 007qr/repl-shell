@@ -30,7 +30,10 @@ impl Completer for ShellCompleter {
         }
 
         let mut candidates = Vec::new();
-        for word in &self.words {
+        let mut words = self.words.clone();
+        words.sort();
+
+        for word in &words {
             if word.starts_with(line) {
                 candidates.push(Pair {
                     display: word.clone(),
