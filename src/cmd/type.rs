@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{env, path::PathBuf};
 
 use crate::cmd::{CommandResult, Shell, ShellCmd, ShellError, is_executable};
 
@@ -23,30 +23,27 @@ impl ShellCmd for Type {
             });
         }
 
-        match std::env::var("PATH") {
-            Ok(path_var) => {
-                for dir in path_var.split(':') {
-                    let candidate = Path::new(dir).join(command);
+        if let Some(path_env) = env::var_os("PATH") {
+            for dir in env::split_paths(&path_env) {
+                let candidate = PathBuf::from(dir).join(command);
 
-                    if let Ok(metadata) = candidate.metadata() {
-                        if metadata.is_file() && is_executable(&metadata) {
-                            return Ok(CommandResult::Streams {
-                                stdout: format!("{command} is {}\n", candidate.display()),
-                                stderr: String::new(),
-                            });
-                        }
-                    }
+                if candidate.is_file() && is_executable(&candidate) {
+                    return Ok(CommandResult::Streams {
+                        stdout: format!("{command} is {}\n", candidate.display()),
+                        stderr: String::new(),
+                    });
                 }
-
-                Ok(CommandResult::Streams {
-                    stdout: String::new(),
-                    stderr: format!("{command}: not found\n"),
-                })
             }
-            Err(e) => Ok(CommandResult::Streams {
+
+            Ok(CommandResult::Streams {
                 stdout: String::new(),
-                stderr: format!("error: {e}\n"),
-            }),
+                stderr: format!("{command}: not found\n"),
+            })
+        } else {
+            return Ok(CommandResult::Streams {
+                stdout: String::new(),
+                stderr: format!("$PATH not set"),
+            });
         }
     }
 }

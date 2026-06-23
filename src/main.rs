@@ -22,6 +22,11 @@ struct Redirection {
 
 fn main() {
     let mut shell = Shell::new();
+    let config = rustyline::Config::builder()
+        .history_ignore_space(true)
+        .completion_type(rustyline::CompletionType::List)
+        .bell_style(rustyline::config::BellStyle::Audible)
+        .build();
 
     let mut cmd_names: Vec<String> = shell
         .builtin_commands()
@@ -35,8 +40,9 @@ fn main() {
 
     cmd_names.append(&mut external_cmd_names);
 
+
     let h = ShellCompleter::new(cmd_names);
-    let mut rl = Editor::new().expect("failed to create rustyline editor");
+    let mut rl = Editor::with_config(config).expect("failed to create rustyline editor");
     rl.set_helper(Some(h));
 
     loop {

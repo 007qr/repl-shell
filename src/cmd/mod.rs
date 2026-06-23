@@ -6,10 +6,10 @@ mod pwd;
 mod r#type;
 
 use std::os::unix::fs::PermissionsExt;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 use std::rc::Rc;
-use std::{collections::HashMap, fs::Metadata};
-use std::{env, fs };
+use std::{collections::HashMap};
+use std::{env, fs};
 
 use self::{cd::Cd, echo::Echo, exit::Exit, external::ExternalCmd, pwd::Pwd, r#type::Type};
 
@@ -65,7 +65,7 @@ impl Shell {
                         for entry in entries.flatten() {
                             let path = entry.path();
 
-                            if path.is_file() {
+                            if path.is_file() && is_executable(&path) {
                                 if let Some(file_name)  = path.file_name().and_then(|n| n.to_str()) {
                                     self.external_commands.insert(file_name.to_string(), path);
                                 }
@@ -110,6 +110,9 @@ pub trait ShellCmd {
 }
 
 #[inline]
-pub fn is_executable(metadata: &Metadata) -> bool {
-    metadata.permissions().mode() & 0o111 != 0
+pub fn is_executable(file_path: &PathBuf) -> bool {
+    if let Ok(metadata) = fs::metadata(file_path) {
+        return metadata.permissions().mode() & 0o111 != 0;
+    }
+    false
 }
