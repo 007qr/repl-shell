@@ -37,7 +37,14 @@ impl Completer for ShellCompleter {
                         }
                     }
                 })
-                .collect();
+                .collect::<Vec<Pair>>();
+
+            if candidates.len() > 1 {
+                print!("\x07");
+                use std::io::{self, Write};
+                let _ = io::stdout().flush();
+            }
+
             Ok((start, candidates))
         } else {
             let mut candidates = Vec::new();
