@@ -34,7 +34,7 @@ impl Completer for ShellCompleter {
             if word.starts_with(line) {
                 candidates.push(Pair {
                     display: word.clone(),
-                    replacement: word.clone(),
+                    replacement: format!("{} ", word),
                 });
             }
         }

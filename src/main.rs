@@ -23,9 +23,13 @@ struct Redirection {
 fn main() {
     let mut shell = Shell::new();
 
-    let h = ShellCompleter::new(
-        ["echo", "exit"].into_iter().map(String::from).collect(),
-    );
+    let cmd_names = shell
+        .builtin_commands()
+        .keys()
+        .into_iter()
+        .map(String::from);
+
+    let h = ShellCompleter::new(cmd_names.collect());
     let mut rl = Editor::new().expect("failed to create rustyline editor");
     rl.set_helper(Some(h));
 
@@ -171,7 +175,6 @@ fn parse_quotes(input: &str) -> (Redirection, Vec<String>) {
                     if matches!(next, ' ') {
                         chars.next();
                     }
-
                 }
 
                 while let Some(c) = chars.next() {

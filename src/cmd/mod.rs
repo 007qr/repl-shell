@@ -49,6 +49,10 @@ impl Shell {
             ExternalCmd::run(command, args)
         }
     }
+
+    pub fn builtin_commands(&self) -> &HashMap<String, Rc<dyn ShellCmd>> {
+        &self.builtin_commands
+    }
 }
 
 #[derive(Debug)]
