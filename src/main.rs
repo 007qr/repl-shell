@@ -1,5 +1,5 @@
 pub mod cmd;
-pub mod completer;
+pub mod shell_completer;
 
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -7,7 +7,7 @@ use std::io::Write;
 use rustyline::Editor;
 
 use crate::cmd::{CommandResult, Shell};
-use crate::completer::ShellCompleter;
+use crate::shell_completer::ShellCompleter;
 
 struct TokenizedInput {
     command: String,
@@ -42,6 +42,7 @@ fn main() {
 
 
     let h = ShellCompleter::new(cmd_names);
+
     let mut rl = Editor::with_config(config).expect("failed to create rustyline editor");
     rl.set_helper(Some(h));
 
@@ -52,7 +53,7 @@ fn main() {
 
                 let input = input.trim();
 
-                let (redirection, parsed_input) = parse_quotes(&input);
+                let (redirection, parsed_input) = parse_input(&input);
                 let Some(tokenized) = tokenize_input(parsed_input) else {
                     continue; // empty line — just re-prompt
                 };
@@ -120,7 +121,7 @@ fn emit(stream: &str, to_file: bool, file_name: &str, append_only: bool) {
     }
 }
 
-fn parse_quotes(input: &str) -> (Redirection, Vec<String>) {
+fn parse_input(input: &str) -> (Redirection, Vec<String>) {
     let mut tokens = Vec::new();
     let mut current = String::new();
     let mut file_name = String::new();
