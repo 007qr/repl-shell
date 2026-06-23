@@ -28,8 +28,13 @@ impl Completer for ShellCompleter {
             let candidates = candidates
                 .into_iter()
                 .map(|pair| {
-                    if pair.replacement.ends_with('/') {
-                        pair
+                    let clean = pair.replacement.trim_end_matches('/');
+                    if std::path::Path::new(clean).is_dir() {
+                        Pair {
+                            display: format!("{}/", pair.display.trim_end_matches('/')),
+                            replacement: format!("{}/", clean),
+                            ..pair
+                        }
                     } else {
                         Pair {
                             replacement: format!("{} ", pair.replacement),
@@ -41,8 +46,7 @@ impl Completer for ShellCompleter {
 
             if candidates.len() > 1 {
                 print!("\x07");
-                use std::io::{self, Write};
-                let _ = io::stdout().flush();
+                let _ = std::io::Write::flush(&mut std::io::stdout());
             }
 
             Ok((start, candidates))
