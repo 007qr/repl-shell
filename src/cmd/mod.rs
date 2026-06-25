@@ -18,6 +18,7 @@ pub struct Shell {
     builtin_commands: HashMap<String, Rc<dyn ShellCmd>>,
     external_commands: HashMap<String, PathBuf>,
     working_dir: PathBuf,
+    completers: HashMap<String, PathBuf>
 }
 
 impl Shell {
@@ -39,6 +40,7 @@ impl Shell {
             builtin_commands,
             working_dir: current_dir,
             external_commands: HashMap::new(),
+            completers: HashMap::new()
         }
     }
 
@@ -78,6 +80,15 @@ impl Shell {
             }
         }
         &self.external_commands
+    }
+
+    pub fn completer(&mut self) -> &mut HashMap<String, PathBuf> {
+        &mut self.completers
+    }
+
+    pub fn set_completer(&mut self, k: String, v: PathBuf) -> &HashMap<String, PathBuf> {
+        self.completers.insert(k, v);
+        &self.completers
     }
 }
 
