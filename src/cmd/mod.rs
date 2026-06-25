@@ -4,6 +4,7 @@ mod exit;
 mod external;
 mod pwd;
 mod r#type;
+mod complete;
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -11,7 +12,7 @@ use std::rc::Rc;
 use std::{collections::HashMap};
 use std::{env, fs};
 
-use self::{cd::Cd, echo::Echo, exit::Exit, external::ExternalCmd, pwd::Pwd, r#type::Type};
+use self::{cd::Cd, echo::Echo, exit::Exit, external::ExternalCmd, pwd::Pwd, r#type::Type, complete::Complete};
 
 pub struct Shell {
     builtin_commands: HashMap<String, Rc<dyn ShellCmd>>,
@@ -27,6 +28,7 @@ impl Shell {
             Rc::new(Type),
             Rc::new(Pwd),
             Rc::new(Cd),
+            Rc::new(Complete)
         ]
         .into_iter()
         .map(|cmd| (cmd.name().to_string(), cmd))
